@@ -54,8 +54,8 @@ pv_tput_rmcup() { echoti rmcup; }       # exit alternate screen (screen+cursor r
 pv_tput_rmam()  { echoti rmam; }        # disable auto-wrapping of lines (no automatic margins)
 pv_tput_smam()  { echoti smam; }        # enable auto-wrapping of lines (automatic margins)
 
-pv_tput_civis() { echoti civis; }       # hide cursor
-pv_tput_cnorm() { echoti cnorm; }       # show cursor
+pv_tput_civis() { echoti civis 2>/dev/null || print -nr -- $'\033[?25l'; }  # hide cursor (raw escape fallback)
+pv_tput_cnorm() { echoti cnorm 2>/dev/null || print -nr -- $'\033[?25h'; }  # show cursor (raw escape fallback)
 
 pv_tput_cuf()   { echoti cuf $1; }      # cursor forward (relative: move-right)
 pv_tput_cup()   { echoti cup $1 $2; }   # cursor position (absolute: y, x)
@@ -1192,7 +1192,15 @@ if program_exists "direnv"; then
         pv_sleep $PV_CLOSE_FRAME_DELAY
         local -i row=$(( _PV_DIRENV_PKG_TOP + 2 ))
         for p in "${pkgs[@]}"; do
-            printf '\033[%d;1H%s'"${PROCESSING_TEXT_COLOR}"'│ '"${LOG_TEXT_COLOR}"'%-'"${w}"'s '"${PROCESSING_TEXT_COLOR}"'│\033[0m' "$row" "$m" "$p"
+            # package name in white, trailing version in yellow
+            local _pn="${p%%-[0-9]*}" _pv=""
+            if [[ "$_pn" != "$p" ]]; then
+                _pv="${p#${_pn}-}"
+            fi
+            local -i _pad=$(( w - ${#p} ))
+            local _padtail=""
+            (( _pad > 0 )) && _padtail=${(l:_pad:: :)}
+            printf '\033[%d;1H%s'"${PROCESSING_TEXT_COLOR}"'│ \033[97m%b\033[0m '"${PROCESSING_TEXT_COLOR}"'│\033[0m' "$row" "$m" "${_pn}\033[33m${_pv}${_padtail}"
             printf '\033[%d;1H%s'"${PROCESSING_TEXT_COLOR}"'╰%s╯\033[0m' $(( row + 1 )) "$m" "$hbar"
             (( row++ ))
             pv_sleep $PV_CLOSE_FRAME_DELAY
