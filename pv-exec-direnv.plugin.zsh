@@ -1175,11 +1175,12 @@ if program_exists "direnv"; then
         local -i w=0
         local p
         for p in "${pkgs[@]}"; do
-            (( ${#p} > w )) && w=${#p}
+            # +1 accounts for the space between name and version
+            (( ${#p} + 1 > w )) && w=$(( ${#p} + 1 ))
         done
         local -i maxw=$(( ${COLUMNS:-80} - 8 ))
         (( w > maxw )) && w=$maxw
-        local hbar=${(l:$((w + 2))::─:)}
+        local hbar=${(l:$((w + 1))::─:)}
         # match the direnv log view's left margin (PV_BORDER_MARGIN_LEFT)
         local -i ml=${PV_BORDER_MARGIN_LEFT:-2}
         local m=${(l:ml:: :)}
@@ -1197,10 +1198,18 @@ if program_exists "direnv"; then
             if [[ "$_pn" != "$p" ]]; then
                 _pv="${p#${_pn}-}"
             fi
-            local -i _pad=$(( w - ${#p} ))
+            # one formula for all rows: with or without a version suffix the
+            # row is exactly w visible columns (the format's trailing space
+            # after %b included)
+            local -i _pad=$(( w - ${#p} - 1 ))
             local _padtail=""
             (( _pad > 0 )) && _padtail=${(l:_pad:: :)}
-            printf '\033[%d;1H%s'"${PROCESSING_TEXT_COLOR}"'│ \033[97m%b\033[0m '"${PROCESSING_TEXT_COLOR}"'│\033[0m' "$row" "$m" "${_pn}\033[33m${_pv}${_padtail}"
+            local _b="${_pn}"
+            if [[ -n "$_pv" ]]; then
+                _b="${_pn} \033[33m${_pv}\033[0m"
+            fi
+            printf '\033[%d;1H%s'"${PROCESSING_TEXT_COLOR}"'│ \033[97m%b '"${PROCESSING_TEXT_COLOR}"'│\033[0m' "$row" "$m" "${_b}${_padtail}"
+            pv_tput_el   # erase stale riding-border fragments right of the row
             printf '\033[%d;1H%s'"${PROCESSING_TEXT_COLOR}"'╰%s╯\033[0m' $(( row + 1 )) "$m" "$hbar"
             (( row++ ))
             pv_sleep $PV_CLOSE_FRAME_DELAY
