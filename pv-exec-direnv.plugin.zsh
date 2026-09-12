@@ -1112,7 +1112,10 @@ if program_exists "direnv"; then
     TRAPUSR1() {
         emulate -L zsh
         (( _PV_DIRENV_PKG_SHOWN > 0 )) || return 0
-        if [[ -o zle ]]; then
+        # bare `zle` (not `[[ -o zle ]`]): exit 0 only when widgets can
+        # actually be invoked — the option is set even while the shell is
+        # mid-command, which made `zle _pv_direnv_retract` error out
+        if zle; then
             zle _pv_direnv_retract
         else
             _pv_direnv_pkg_clear
@@ -1151,6 +1154,12 @@ if program_exists "direnv"; then
         # drop the previous box if the user entered another project without
         # running a command in between
         _pv_direnv_pkg_clear
+
+        # when the fallback prompt is active it shows the package count
+        # itself (❄); skip the animated box — its retract animation relies
+        # on zle prompt-anchor behavior only oh-my-posh satisfies (the
+        # count is still parsed and returned above)
+        (( ${+_FALLBACK_PROMPT_ACTIVE} )) && return ${#pkgs}
 
         # the export popview's label line ("direnv: <dir>") sits right above
         # the box and acts as the header: keep it, it gets replaced by the
@@ -1269,6 +1278,13 @@ if program_exists "direnv"; then
                 local -i n=0
                 _pv_direnv_packages "$_PV_DIRENV_LAST" "$pkgtf" "$rcf"
                 n=$?
+                # expose the count for other scripts (e.g. prompt fallback)
+                # and persist it in its cache so nothing has to re-eval
+                typeset -g _PV_DIRENV_PKG_COUNT=$n
+                typeset -g _PV_DIRENV_PKG_DIR="$_PV_DIRENV_LAST"
+                local _pfc="${XDG_CACHE_HOME:-$HOME/.cache}/fallback-direnv/${_PV_DIRENV_LAST//\//%}"
+                command mkdir -p "${_pfc:h}"
+                print -r -- $n > "$_pfc"
                 if (( n > 0 )); then
                     printf "\033[36mdirenv\033[0m: \033[97m%s\033[0m, %d packages\n\n" "${_PV_DIRENV_LAST:t}" "$n"
                 else
